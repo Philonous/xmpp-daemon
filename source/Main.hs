@@ -36,8 +36,8 @@ import           System.Log.Logger
 
 import           XmppDaemon.Stun
 
-config = Xmpp.def{Xmpp.sessionStreamConfiguration
-              = Xmpp.def{Xmpp.connectionDetails = Xmpp.UseHost "localhost" (PortNumber 5222)}}
+config det = Xmpp.def{Xmpp.sessionStreamConfiguration
+                          = Xmpp.def{Xmpp.connectionDetails = det}}
 
 instance DBus.Representable Xmpp.Jid where
     type RepType Xmpp.Jid = 'DBus.DBusSimpleType DBus.TypeString
@@ -137,7 +137,14 @@ instance Conf.Configured [Xmpp.Jid] where
 
 main = do
     conf <- loadConfig
-    host <- Conf.require conf "xmpp.server"
+    realm <- Conf.require conf "xmpp.realm"
+    server <- Conf.lookup conf "xmpp.server"
+    port <- Conf.lookup conf "xmpp.port" :: IO (Maybe Integer)
+    let conDetails = case server of
+            Nothing -> Xmpp.UseRealm
+            Just srv -> case port of
+                Nothing -> Xmpp.UseSrv srv
+                Just p -> Xmpp.UseHost srv (PortNumber $ fromIntegral p)
     uname <- Conf.require conf "xmpp.user"
     pwd <- Conf.require conf "xmpp.password"
     stunServer <- Conf.require conf "stun.server"
@@ -148,7 +155,7 @@ main = do
     -- handler <- streamHandler stderr DEBUG >>= \h ->
     --     return $ setFormatter h (simpleLogFormatter "$loggername: $msg")
     -- updateGlobalLogger "Pontarius.Xmpp" (addHandler handler)
-    sess' <- Xmpp.session host (Xmpp.simpleAuth uname pwd) config
+    sess' <- Xmpp.session realm (Xmpp.simpleAuth uname pwd) (config conDetails)
     sess <- case sess' of
         Left err -> error $ "Error connection to XMPP server: " ++ show err
         Right sess -> return sess

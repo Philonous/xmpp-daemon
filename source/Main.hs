@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
@@ -6,6 +7,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE LambdaCase #-}
 module Main where
 
 import           Control.Applicative
@@ -149,6 +151,11 @@ main = do
     pwd <- Conf.require conf "xmpp.password"
     stunServer <- Conf.require conf "stun.server"
     peers <- Conf.require conf "peers"
+    bus <- Conf.lookup conf "dbus.bus" >>= \case
+        (Nothing :: Maybe Text.Text) -> return Session
+        Just "system" -> return System
+        Just "session" -> return Session
+        Just x -> return $ Address (Text.unpack x)
     updateGlobalLogger "Pontarius.Xmpp" $ setLevel ERROR
     updateGlobalLogger "DBus" $ setLevel ERROR
     let policy j = any (jidCompatible j) peers
@@ -164,7 +171,7 @@ main = do
     forkIO $ handlePresence sess presRef (return . policy)
     Xmpp.sendPresence Xmpp.presenceOnline sess
     infoM "Pontarius.Xmpp" "Done connecting to XMPP server, connecting to DBUS"
-    con <- connectBus Session
+    con <- connectBus bus
            (\con header bdy -> do
                  print header
                  objectRoot (addIntrospectable $ root sess presRef) con header bdy

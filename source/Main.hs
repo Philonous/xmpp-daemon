@@ -156,8 +156,19 @@ main = do
         Just "system" -> return System
         Just "session" -> return Session
         Just x -> return $ Address (Text.unpack x)
-    updateGlobalLogger "Pontarius.Xmpp" $ setLevel ERROR
-    updateGlobalLogger "DBus" $ setLevel ERROR
+    loglevel <- Conf.lookup conf "loglevel" >>= \case
+        (Nothing :: Maybe Text.Text) -> return ERROR
+        Just "debug" -> return DEBUG
+        Just "info" -> return INFO
+        Just "notice" -> return NOTICE
+        Just "warning" -> return WARNING
+        Just "error" -> return ERROR
+        Just "critical" -> return CRITICAL
+        Just "alert" -> return ALERT
+        Just "emergency" -> return EMERGENCY
+        Just e -> error $ "Log level " ++ (Text.unpack e) ++ " unknown"
+    updateGlobalLogger "Pontarius.Xmpp" $ setLevel loglevel
+    updateGlobalLogger "DBus" $ setLevel loglevel
     let policy j = any (jidCompatible j) peers
     -- handler <- streamHandler stderr DEBUG >>= \h ->
     --     return $ setFormatter h (simpleLogFormatter "$loggername: $msg")

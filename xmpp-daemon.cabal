@@ -14,7 +14,8 @@ cabal-version:       >=1.10
 
 executable xmpp-daemon
   main-is:             Main.hs
-  -- other-modules:
+  other-modules:       XmppDaemon.Stun
+                     , XmppDaemon.State
   -- other-extensions:
   build-depends:       base >=4.6 && <4.7
                      , configurator
@@ -32,6 +33,9 @@ executable xmpp-daemon
                      , xml-types
                      , stm
                      , containers
+                     , acid-state
+                     , safecopy
+                     , lens
 --                     , pontarius-xmpp-e2e
   hs-source-dirs:      source
   default-language:    Haskell2010

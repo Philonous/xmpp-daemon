@@ -36,6 +36,7 @@ import           System.Directory
 import           System.FilePath
 import           System.Log.Logger
 
+import           XmppDaemon.State
 import           XmppDaemon.Stun
 
 config det = Xmpp.def{Xmpp.sessionStreamConfiguration
@@ -63,20 +64,30 @@ getAddrMethod con ref = DBus.Method (DBus.repMethod $ findAddr con ref)
                                 "getAddr"
                                 ("peer" :-> Result "addr answer")
 
-xmppInterface con ref  = Interface "pontarius.xmpp" [ sendMethod con
-                                                    , getAddrMethod con ref
-                                                    ] []
+newPeer state session j = do
+    Xmpp.rosterAdd j Nothing [] session
+    addPeer state j
+    return ()
 
-conObject con ref =
+addPeerMethod st sess = DBus.Method (DBus.repMethod $ newPeer st sess)
+                                    "addPeer"
+                                    ("peer" :-> Result "")
+
+xmppInterface st con ref  = Interface "pontarius.xmpp" [ sendMethod con
+                                                       , getAddrMethod con ref
+                                                       , addPeerMethod st con
+                                                       ] []
+
+conObject st con ref =
     Object { objectObjectPath = objectPath "pontarius/xmpp/connection"
-           , objectInterfaces = [xmppInterface con ref]
+           , objectInterfaces = [xmppInterface st con ref]
            , objectSubObjects = []
            }
 
-root con ref = Object { objectObjectPath = objectPath "/"
-                      , objectInterfaces = []
-                      , objectSubObjects = [conObject con ref]
-                      }
+root st con ref = Object { objectObjectPath = objectPath "/"
+                         , objectInterfaces = []
+                         , objectSubObjects = [conObject st con ref]
+                         }
 
 -- | Load the configuration files
 loadConfig :: IO Conf.Config
@@ -131,13 +142,13 @@ handlePresence session ref policy = forever $ do
                     pol <- policy f
                     when pol . void $ Xmpp.sendPresence (Xmpp.presenceSubscribed f)
                                                  session
-
         _ -> return ()
 
 instance Conf.Configured [Xmpp.Jid] where
     convert (Conf.List xs) = mapM (Xmpp.jidFromText <=< Conf.convert) xs
 
 main = do
+    st <- loadState
     conf <- loadConfig
     realm <- Conf.require conf "xmpp.realm"
     server <- Conf.lookup conf "xmpp.server"
@@ -150,7 +161,6 @@ main = do
     uname <- Conf.require conf "xmpp.user"
     pwd <- Conf.require conf "xmpp.password"
     stunServer <- Conf.require conf "stun.server"
-    peers <- Conf.require conf "peers"
     bus <- Conf.lookup conf "dbus.bus" >>= \case
         (Nothing :: Maybe Text.Text) -> return Session
         Just "system" -> return System
@@ -169,7 +179,7 @@ main = do
         Just e -> error $ "Log level " ++ (Text.unpack e) ++ " unknown"
     updateGlobalLogger "Pontarius.Xmpp" $ setLevel loglevel
     updateGlobalLogger "DBus" $ setLevel loglevel
-    let policy j = any (jidCompatible j) peers
+    let policy j = hasPeer st j
     -- handler <- streamHandler stderr DEBUG >>= \h ->
     --     return $ setFormatter h (simpleLogFormatter "$loggername: $msg")
     -- updateGlobalLogger "Pontarius.Xmpp" (addHandler handler)
@@ -178,14 +188,14 @@ main = do
         Left err -> error $ "Error connection to XMPP server: " ++ show err
         Right sess -> return sess
     presRef <- newTVarIO (Set.empty)
-    forkIO $ stunHandler stunServer sess (return . policy)
-    forkIO $ handlePresence sess presRef (return . policy)
+    forkIO $ stunHandler stunServer sess policy
+    forkIO $ handlePresence sess presRef policy
     Xmpp.sendPresence Xmpp.presenceOnline sess
     infoM "Pontarius.Xmpp" "Done connecting to XMPP server, connecting to DBUS"
     con <- connectBus bus
            (\con header bdy -> do
                  print header
-                 objectRoot (addIntrospectable $ root sess presRef) con header bdy
+                 objectRoot (addIntrospectable $ root st sess presRef) con header bdy
            ) (\ _ _ _ -> return ())
     infoM "Pontarius.Xmpp" "Requesting name"
     requestName "xmpp.daemon" def con

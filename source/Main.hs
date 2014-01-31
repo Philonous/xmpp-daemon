@@ -65,7 +65,7 @@ getAddrMethod con ref = DBus.Method (DBus.repMethod $ findAddr con ref)
                                 ("peer" :-> Result "addr answer")
 
 newPeer state session j = do
-    Xmpp.rosterAdd j Nothing [] session
+    Xmpp.sendPresence (Xmpp.presenceSubscribe j) session
     addPeer state j
     return ()
 
@@ -73,9 +73,20 @@ addPeerMethod st sess = DBus.Method (DBus.repMethod $ newPeer st sess)
                                     "addPeer"
                                     ("peer" :-> Result "")
 
+removePeer state session j = do
+    Xmpp.sendPresence (Xmpp.presenceUnsubscribe j) session
+    Xmpp.sendPresence (Xmpp.presenceUnsubscribed j) session
+    rmPeer state j
+    return ()
+
+removePeerMethod st sess = DBus.Method (DBus.repMethod $ newPeer st sess)
+                                      "removePeer"
+                                      ("peer" :-> Result "")
+
 xmppInterface st con ref  = Interface "pontarius.xmpp" [ sendMethod con
                                                        , getAddrMethod con ref
                                                        , addPeerMethod st con
+                                                       , removePeerMethod st con
                                                        ] []
 
 conObject st con ref =
@@ -142,6 +153,7 @@ handlePresence session ref policy = forever $ do
                     pol <- policy f
                     when pol . void $ Xmpp.sendPresence (Xmpp.presenceSubscribed f)
                                                  session
+                _ -> return ()
         _ -> return ()
 
 instance Conf.Configured [Xmpp.Jid] where

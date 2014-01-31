@@ -14,6 +14,7 @@ import           System.Environment
 import           System.Exit
 import           System.IO
 
+getIP :: String -> IO ()
 getIP peer = do
     con <- connectBus Session (\_ _ _ -> return ()) (\_ _ _ -> return ())
     eitherIP <- callMethod' "xmpp.daemon" (objectPath "/pontarius/xmpp/connection")
@@ -24,6 +25,7 @@ getIP peer = do
         Right ip -> putStrLn $ Text.unpack ip
         Left error -> hPutStrLn stderr $ Text.unpack error
 
+addPeer :: String -> IO ()
 addPeer peer = do
     con <- connectBus Session (\_ _ _ -> return ()) (\_ _ _ -> return ())
     () <- callMethod' "xmpp.daemon" (objectPath "/pontarius/xmpp/connection")
@@ -32,11 +34,22 @@ addPeer peer = do
                             [] con
     return ()
 
+rmPeer :: String -> IO ()
+rmPeer peer = do
+    con <- connectBus Session (\_ _ _ -> return ()) (\_ _ _ -> return ())
+    () <- callMethod' "xmpp.daemon" (objectPath "/pontarius/xmpp/connection")
+                            "pontarius.xmpp" "removePeer"
+                            [DBV . DBVString $ Text.pack peer]
+                            [] con
+    return ()
+
+printUsage :: IO ()
 printUsage = do
     putStr "usage: xmpp-client command args "
     putStr "Commands: "
     putStr "  getip   peer (jid)"
     putStr "  addpeer peer (jid)"
+    putStr "  rmpeer peer (jid)"
     exitFailure
 
 
@@ -48,5 +61,8 @@ main = getArgs >>= \case
                 _ -> printUsage
             "addpeer" ->  case args of
                 [p] -> addPeer p
+                _ -> printUsage
+            "rmpeer" ->  case args of
+                [p] -> rmPeer p
                 _ -> printUsage
             _ -> printUsage

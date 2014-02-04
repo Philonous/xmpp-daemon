@@ -18,24 +18,27 @@ executable xmpp-daemon
                      , XmppDaemon.State
   -- other-extensions:
   build-depends:       base >=4.6 && <4.7
+                     , acid-state
+                     , bytestring
                      , configurator
+                     , containers
                      , d-bus
                      , directory
+                     , dns
                      , filepath
                      , hslogger
+                     , iproute
+                     , lens
                      , mtl
                      , network
                      , pontarius-xmpp
+                     , safecopy
+                     , stm
                      , stunclient
                      , stunclient
                      , text
                      , xml-picklers
                      , xml-types
-                     , stm
-                     , containers
-                     , acid-state
-                     , safecopy
-                     , lens
 --                     , pontarius-xmpp-e2e
   hs-source-dirs:      source
   default-language:    Haskell2010

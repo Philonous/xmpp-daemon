@@ -18,8 +18,6 @@ import qualified Control.Exception as Ex
 import           Control.Monad
 import           Control.Monad.Reader
 import           DBus
-import           DBus (MethodDescription(..))
-import           DBus.MessageBus
 import qualified Data.Configurator as Conf
 import qualified Data.Configurator.Types as Conf
 import           Data.Function (on)
@@ -173,6 +171,7 @@ main = do
     uname <- Conf.require conf "xmpp.user"
     pwd <- Conf.require conf "xmpp.password"
     stunServer <- Conf.require conf "stun.server"
+    stunPort <- fmap fromInteger <$> Conf.lookup conf "stun.port"
     bus <- Conf.lookup conf "dbus.bus" >>= \case
         (Nothing :: Maybe Text.Text) -> return Session
         Just "system" -> return System
@@ -200,7 +199,7 @@ main = do
         Left err -> error $ "Error connection to XMPP server: " ++ show err
         Right sess -> return sess
     presRef <- newTVarIO (Set.empty)
-    forkIO $ stunHandler stunServer sess policy
+    forkIO $ stunHandler stunServer stunPort sess policy
     forkIO $ handlePresence sess presRef policy
     Xmpp.sendPresence Xmpp.presenceOnline sess
     infoM "Pontarius.Xmpp" "Done connecting to XMPP server, connecting to DBUS"
